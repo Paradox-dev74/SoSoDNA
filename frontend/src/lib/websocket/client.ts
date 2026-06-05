@@ -3,6 +3,13 @@ import { api } from '@/lib/api/client'
 
 type MessageHandler = (data: Record<string, unknown>) => void
 
+function resolveWsBase(): string {
+  if (WS_URL) return WS_URL.replace(/\/$/, '')
+  if (API_URL) return API_URL.replace(/^http/, 'ws').replace(/\/$/, '')
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${proto}//${window.location.host}`
+}
+
 export class WebSocketClient {
   private ws: WebSocket | null = null
   private handlers: Map<string, MessageHandler[]> = new Map()
@@ -13,7 +20,7 @@ export class WebSocketClient {
     const token = api.getToken()
     if (!token) return
 
-    const base = WS_URL || API_URL.replace('http', 'ws')
+    const base = resolveWsBase()
     const url = `${base}/ws/user/${userId}?token=${encodeURIComponent(token)}`
     this.ws = new WebSocket(url)
 
