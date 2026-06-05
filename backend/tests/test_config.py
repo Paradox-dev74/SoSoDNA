@@ -13,3 +13,8 @@ def test_demo_bypass_only_local():
 
     prod = Settings(demo_mode=True, app_env="production")
     assert prod.allow_demo_auth_bypass is False
+
+
+def test_async_database_url_normalizes_neon_postgres_url():
+    settings = Settings(database_url="postgresql://user:pass@host/db?sslmode=require")
+    assert settings.async_database_url == "postgresql+asyncpg://user:pass@host/db?sslmode=require"

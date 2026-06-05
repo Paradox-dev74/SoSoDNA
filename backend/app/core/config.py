@@ -38,6 +38,18 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     @property
+    def async_database_url(self) -> str:
+        """Neon/Vercel Postgres URLs are often sync `postgresql://`; SQLAlchemy async needs asyncpg."""
+        url = self.database_url
+        if "+asyncpg" in url or "+psycopg" in url:
+            return url
+        if url.startswith("postgresql://"):
+            return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        if url.startswith("postgres://"):
+            return url.replace("postgres://", "postgresql+asyncpg://", 1)
+        return url
+
+    @property
     def is_local(self) -> bool:
         return self.app_env.lower() == "local"
 

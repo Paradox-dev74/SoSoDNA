@@ -59,6 +59,10 @@ async def cache_delete(key: str) -> None:
         _memory_cache.pop(key, None)
 
 
+class CacheUnavailableError(RuntimeError):
+    """Raised when Redis is required but unreachable."""
+
+
 async def cache_set(key: str, value: Any, ttl: int = 300) -> None:
     client = await get_redis()
     if client:
@@ -66,6 +70,8 @@ async def cache_set(key: str, value: Any, ttl: int = 300) -> None:
         return
     if _allow_memory_fallback():
         _memory_cache[key] = (value, time.time() + ttl)
+        return
+    raise CacheUnavailableError("Redis is unavailable. Set REDIS_URL to a reachable Redis instance.")
 
 
 async def publish_event(channel: str, payload: dict[str, Any]) -> None:

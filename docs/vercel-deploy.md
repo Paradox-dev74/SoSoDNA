@@ -27,7 +27,7 @@ Vercel does not include PostgreSQL or Redis. Add these before first deploy:
 | PostgreSQL | [Neon](https://neon.tech) or Vercel Postgres | `DATABASE_URL` |
 | Redis      | [Upstash](https://upstash.com) (Vercel integration) | `REDIS_URL` |
 
-`DATABASE_URL` must use the async driver, e.g.:
+`DATABASE_URL` can be pasted from Neon as `postgresql://...` (the API auto-converts to `postgresql+asyncpg://`), or set explicitly:
 
 ```
 postgresql+asyncpg://user:pass@host/db?sslmode=require

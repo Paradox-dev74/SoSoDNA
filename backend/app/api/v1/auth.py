@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user_id
 from app.core.database import get_db
+from app.core.redis_client import CacheUnavailableError
 from app.schemas.auth import AuthNonceRequest, AuthNonceResponse, AuthVerifyRequest, AuthVerifyResponse, UserResponse
 from app.services.auth_service import AuthService
 
@@ -23,13 +24,18 @@ class LogoutRequest(BaseModel):
 
 @router.post("/nonce", response_model=AuthNonceResponse)
 async def create_nonce(request: AuthNonceRequest) -> AuthNonceResponse:
-    return await auth_service.create_nonce(request.address, request.chain_id)
+    try:
+        return await auth_service.create_nonce(request.address, request.chain_id)
+    except CacheUnavailableError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)) from e
 
 
 @router.post("/verify", response_model=AuthVerifyResponse)
 async def verify_signature(request: AuthVerifyRequest, db: AsyncSession = Depends(get_db)) -> AuthVerifyResponse:
     try:
         return await auth_service.verify_and_login(db, request)
+    except CacheUnavailableError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)) from e
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e)) from e
 
