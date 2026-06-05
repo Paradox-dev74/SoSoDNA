@@ -9,6 +9,21 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
 
+def event_display_title(event: "SoSoValueEvent | None") -> str | None:
+    if not event:
+        return None
+    payload = getattr(event, "payload", None) or {}
+    if isinstance(payload, dict):
+        title = payload.get("title") or payload.get("name")
+        if title:
+            return str(title)
+    legacy_title = getattr(event, "title", None)
+    if legacy_title:
+        return str(legacy_title)
+    source_id = getattr(event, "source_id", None)
+    return str(source_id) if source_id else None
+
+
 class SoSoValueEvent(Base):
     __tablename__ = "sosovalue_events"
 

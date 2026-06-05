@@ -88,13 +88,15 @@ class SyncService:
             candidates.append(("pair_market", {"id": source_id, **pair}))
 
         source_ids = [
-            str(item.get("id") or item.get("eventId") or item.get("title") or item.get("name", "unknown"))
+            str(item.get("id") or item.get("eventId") or item.get("title") or item.get("name", "unknown"))[:128]
             for _, item in candidates
         ]
-        existing_result = await db.execute(
-            select(SoSoValueEvent.source_id).where(SoSoValueEvent.source_id.in_(source_ids))
-        )
-        existing_ids = set(existing_result.scalars().all())
+        existing_ids: set[str] = set()
+        if source_ids:
+            existing_result = await db.execute(
+                select(SoSoValueEvent.source_id).where(SoSoValueEvent.source_id.in_(source_ids))
+            )
+            existing_ids = set(existing_result.scalars().all())
 
         for event_type, item in candidates:
             if await self._upsert_event(db, event_type, item, existing_ids):
@@ -109,7 +111,7 @@ class SyncService:
         item: dict,
         existing_ids: set[str] | None = None,
     ) -> bool:
-        source_id = str(item.get("id") or item.get("eventId") or item.get("title") or item.get("name", "unknown"))
+        source_id = str(item.get("id") or item.get("eventId") or item.get("title") or item.get("name", "unknown"))[:128]
         if existing_ids is not None:
             if source_id in existing_ids:
                 return False
@@ -123,17 +125,21 @@ class SyncService:
         if isinstance(symbols, str):
             symbols = [symbols]
 
+        payload = dict(item)
+        if payload.get("title") is None and payload.get("name"):
+            payload["title"] = payload.get("name")
+        if payload.get("summary") is None and payload.get("content"):
+            payload["summary"] = payload.get("content")
+
         db.add(
             SoSoValueEvent(
-                event_type=event_type,
+                event_type=event_type[:32],
                 source_id=source_id,
                 published_at=published_at,
                 symbols=symbols,
-                title=item.get("title") or item.get("name"),
-                summary=item.get("summary") or item.get("content"),
                 sentiment_score=item.get("sentiment"),
                 importance_score=item.get("importance") or item.get("score"),
-                payload=item,
+                payload=payload,
             )
         )
         return True

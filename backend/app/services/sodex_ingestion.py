@@ -115,7 +115,7 @@ class SodexIngestionService:
             if external_id in existing_ids:
                 continue
 
-            symbol = str(raw.get("symbol") or raw.get("symbolName") or raw.get("name") or self.DEFAULT_SYMBOL)
+            symbol = str(raw.get("symbol") or raw.get("symbolName") or raw.get("name") or self.DEFAULT_SYMBOL)[:32]
             side = self._normalize_side(raw.get("side"))
             price = Decimal(str(raw.get("price") or raw.get("avgPrice") or raw.get("px") or 0))
             quantity = Decimal(str(raw.get("quantity") or raw.get("size") or raw.get("qty") or raw.get("amount") or 0))

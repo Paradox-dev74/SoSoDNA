@@ -9,7 +9,7 @@ from app.ai.insight_engine import AIInsightEngine, InsufficientEvidenceError
 from app.core.database import AsyncSessionLocal
 from app.core.security import verify_access_token
 from app.models.liquidity_snapshot import LiquiditySnapshot
-from app.models.sosovalue_event import SoSoValueEvent
+from app.models.sosovalue_event import SoSoValueEvent, event_display_title
 from app.models.trade import Trade
 from app.risk.engine import RiskEngine
 
@@ -136,7 +136,7 @@ async def _stream_ai_insight(websocket: WebSocket, user_id: str, payload: dict) 
             "regime": "spread_expansion" if snapshot and float(snapshot.spread_bps) > 10 else "stable_liquidity",
             "similar_losing_trades": len(losing_similar),
             "win_rate_similar_setups": win_rate,
-            "sosovalue_event_title": macro_event.title if macro_event else None,
+            "sosovalue_event_title": event_display_title(macro_event),
         }
 
         blockers = insight_engine.assess_evidence(target_trade, metrics, market_context, macro_event)
@@ -184,7 +184,7 @@ async def _stream_ai_insight(websocket: WebSocket, user_id: str, payload: dict) 
             await websocket.send_json({
                 "type": "ai.evidence_found",
                 "payload": {
-                    "sosovalue_event": macro_event.title,
+                    "sosovalue_event": event_display_title(macro_event),
                     "importance": float(macro_event.importance_score or 0),
                     "source": "sosovalue_api",
                 },

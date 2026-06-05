@@ -3,6 +3,7 @@ from uuid import UUID
 
 from app.ai.schemas import EvidenceItem, ForensicInsightOutput
 from app.core.config import get_settings
+from app.models.sosovalue_event import event_display_title
 
 settings = get_settings()
 
@@ -85,7 +86,7 @@ class AIInsightEngine:
             evidence.append(
                 EvidenceItem(
                     metric="sosovalue_macro_event",
-                    value=macro_event.title or macro_event.source_id,
+                    value=event_display_title(macro_event),
                     context="Recent SoSoValue macro event",
                 )
             )
