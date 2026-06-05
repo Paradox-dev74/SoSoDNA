@@ -40,7 +40,7 @@ export function TopBar() {
     syncStatus === 'synced'
       ? lastSyncSummary && !lastSyncSummary.accountFound
         ? 'bg-amber-400'
-        : lastSyncSummary && lastSyncSummary.tradesImported === 0
+        : lastSyncSummary && lastSyncSummary.totalTrades === 0
           ? 'bg-amber-400'
           : 'bg-emerald-400'
       : syncStatus === 'syncing'

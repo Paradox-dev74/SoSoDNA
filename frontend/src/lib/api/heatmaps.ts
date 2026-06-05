@@ -21,6 +21,7 @@ export interface SyncResult {
   account_id?: number | null
   account_state_found?: boolean
   trades_imported?: number
+  total_trades?: number
   snapshots_imported?: number
   sosovalue_events_synced?: number
   regimes_updated?: number

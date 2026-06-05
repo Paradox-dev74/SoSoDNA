@@ -59,6 +59,19 @@ class ReplayEngine:
                 break
 
         if not snapshots:
+            for candidate in dict.fromkeys(symbol_candidates):
+                fallback = await db.execute(
+                    select(LiquiditySnapshot)
+                    .where(LiquiditySnapshot.symbol == candidate)
+                    .order_by(LiquiditySnapshot.timestamp.desc())
+                    .limit(1)
+                )
+                snap = fallback.scalar_one_or_none()
+                if snap:
+                    snapshots = [snap]
+                    break
+
+        if not snapshots:
             raise MissingSnapshotError(trade.symbol, trade.id)
 
         return self._frames_from_snapshots(trade, snapshots, executed_at)

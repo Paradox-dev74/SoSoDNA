@@ -10,6 +10,7 @@ from app.integrations.sosovalue.client import SoSoValueClient
 from app.models.market_regime import MarketRegime
 from app.models.sodex_account import SodexAccount
 from app.models.sosovalue_event import SoSoValueEvent
+from app.models.trade import Trade
 from app.models.wallet import Wallet
 from app.services.sodex_ingestion import SodexIngestionService
 
@@ -63,12 +64,18 @@ class SyncService:
         else:
             sync_status = "completed"
 
+        total_trades_result = await db.execute(
+            select(Trade.id).where(Trade.user_id == user_id)
+        )
+        total_trades = len(total_trades_result.scalars().all())
+
         await db.flush()
         return {
             "status": sync_status,
             "account_id": ingestion.get("account_id"),
             "account_state_found": ingestion.get("account_state_found", False),
             "trades_imported": ingestion.get("trades_imported", 0),
+            "total_trades": total_trades,
             "snapshots_imported": ingestion.get("snapshots_imported", 0),
             "sosovalue_events_synced": soso_stats.get("synced", 0),
             "regimes_updated": regime_stats.get("updated", 0),

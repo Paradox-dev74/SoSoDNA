@@ -15,7 +15,7 @@ export function IntegrationBanner() {
 
   const missingKey = !health.integrations.sosovalue_api_key_configured
   const sodexDown = !health.integrations.sodex_reachable
-  const zeroTrades = lastSyncSummary?.accountFound && lastSyncSummary.tradesImported === 0
+  const zeroTrades = lastSyncSummary?.accountFound && lastSyncSummary.totalTrades === 0
 
   return (
     <div className="space-y-2 px-4 pt-3">

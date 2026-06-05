@@ -86,7 +86,16 @@ class SodexIngestionService:
         combined_trades = raw_trades + [t for t in spot_trades if t not in raw_trades]
 
         trades_imported = await self._import_trades(db, user_id, sodex_account, combined_trades)
-        snapshots_imported = await self._import_orderbook_snapshots(db, self.DEFAULT_SYMBOL)
+        trade_symbols = {
+            str(t.get("symbol") or t.get("symbolName") or t.get("name"))
+            for t in combined_trades
+            if t.get("symbol") or t.get("symbolName") or t.get("name")
+        }
+        if not trade_symbols:
+            trade_symbols = {self.DEFAULT_SYMBOL}
+        snapshots_imported = 0
+        for sym in trade_symbols:
+            snapshots_imported += await self._import_orderbook_snapshots(db, sym)
 
         return {
             "account_id": account_id,
@@ -108,7 +117,13 @@ class SodexIngestionService:
         imported = 0
         pending: list[tuple[str, dict[str, Any]]] = []
         for raw in raw_trades:
-            external_id = raw.get("id") or raw.get("tradeId") or raw.get("fillId") or raw.get("tid")
+            external_id = (
+                raw.get("tradeID")
+                or raw.get("tradeId")
+                or raw.get("id")
+                or raw.get("fillId")
+                or raw.get("tid")
+            )
             if external_id is None:
                 continue
             pending.append((str(external_id), raw))
@@ -145,6 +160,14 @@ class SodexIngestionService:
             if executed_at is None:
                 continue
 
+            enriched = dict(raw)
+            orderbook = await self.client.get_orderbook(symbol, market_type="perps")
+            if orderbook:
+                spread_bps = self._spread_from_orderbook(orderbook)
+                if spread_bps is not None:
+                    enriched["spread_bps"] = float(spread_bps)
+                await self._import_orderbook_snapshots(db, symbol, timestamp=executed_at, orderbook=orderbook)
+
             trade = Trade(
                 user_id=user_id,
                 sodex_account_id=sodex_account.id if sodex_account else None,
@@ -159,14 +182,21 @@ class SodexIngestionService:
                 fee_usd=Decimal(str(raw.get("fee") or 0)),
                 realized_pnl_usd=Decimal(str(pnl)) if pnl is not None else None,
                 executed_at=executed_at,
-                raw_payload=raw,
+                raw_payload=enriched,
             )
             db.add(trade)
             imported += 1
         return imported
 
-    async def _import_orderbook_snapshots(self, db: AsyncSession, symbol: str) -> int:
-        orderbook = await self.client.get_orderbook(symbol)
+    async def _import_orderbook_snapshots(
+        self,
+        db: AsyncSession,
+        symbol: str,
+        *,
+        timestamp: datetime | None = None,
+        orderbook: dict[str, Any] | None = None,
+    ) -> int:
+        orderbook = orderbook or await self.client.get_orderbook(symbol)
         if not orderbook:
             return 0
 
@@ -194,7 +224,7 @@ class SodexIngestionService:
         snapshot = LiquiditySnapshot(
             symbol=symbol,
             market_type="perps",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=timestamp or datetime.now(timezone.utc),
             mid_price=mid,
             best_bid=best_bid,
             best_ask=best_ask,
@@ -213,11 +243,24 @@ class SodexIngestionService:
         return 1
 
     def _normalize_side(self, side: Any) -> str:
-        if side in (1, "1", "buy", "long", "BUY", "LONG"):
+        normalized = str(side or "").upper()
+        if side in (1, "1") or normalized in ("BUY", "LONG"):
             return "long"
-        if side in (2, "2", "sell", "short", "SELL", "SHORT"):
+        if side in (2, "2") or normalized in ("SELL", "SHORT"):
             return "short"
         return str(side or "long")
+
+    def _spread_from_orderbook(self, orderbook: dict[str, Any]) -> Decimal | None:
+        bids = orderbook.get("bids") or []
+        asks = orderbook.get("asks") or []
+        if not bids or not asks:
+            return None
+        best_bid = Decimal(str(bids[0][0] if isinstance(bids[0], list) else bids[0].get("price", 0)))
+        best_ask = Decimal(str(asks[0][0] if isinstance(asks[0], list) else asks[0].get("price", 0)))
+        mid = (best_bid + best_ask) / 2 if best_bid and best_ask else best_bid or best_ask
+        if not mid:
+            return None
+        return ((best_ask - best_bid) / mid * 10000).quantize(Decimal("0.0001"))
 
     def _parse_ts(self, value: Any) -> datetime | None:
         if value is None:

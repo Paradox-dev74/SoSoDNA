@@ -23,6 +23,7 @@ async def test_missing_snapshots_raises():
     db = AsyncMock()
     empty_result = MagicMock()
     empty_result.scalars.return_value.all.return_value = []
+    empty_result.scalar_one_or_none.return_value = None
     db.execute.return_value = empty_result
 
     with pytest.raises(MissingSnapshotError):
