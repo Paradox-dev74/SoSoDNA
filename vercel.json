@@ -4,12 +4,14 @@
     "frontend": {
       "entrypoint": "frontend",
       "framework": "vite",
-      "routePrefix": "/"
+      "mount": "/"
     },
     "backend": {
       "entrypoint": "backend",
       "framework": "fastapi",
-      "routePrefix": "/",
+      "routing": {
+        "paths": ["/api", "/health", "/ws"]
+      },
       "maxDuration": 60,
       "memory": 1024
     }

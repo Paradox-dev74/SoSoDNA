@@ -11,12 +11,12 @@ This repo uses **Vercel Services** (multi-service monorepo): a Vite frontend and
 
 Vercel should detect:
 
-| Service  | Path       | Framework |
-|----------|------------|-----------|
-| frontend | `/`        | Vite      |
-| backend  | `/`        | FastAPI   |
+| Service  | Routes                         | Framework |
+|----------|--------------------------------|-----------|
+| frontend | `/` (catch-all SPA)            | Vite      |
+| backend  | `/api`, `/health`, `/ws`       | FastAPI   |
 
-Root `vercel.json` defines both services via `experimentalServices`.
+Root `vercel.json` defines both services via `experimentalServices`. The backend uses `routing.paths` so it does not share the frontend’s `/` mount.
 
 ## 2. External services (required)
 
@@ -92,6 +92,7 @@ vercel dev
 | Issue | Fix |
 |-------|-----|
 | `vercel.json required` | Ensure root `vercel.json` exists and Framework = **Services** |
+| `cannot share routePrefix "/"` | Backend must use `routing.paths` (not `routePrefix: "/"`) |
 | CORS errors | Add Vercel URL to `CORS_ORIGINS` |
 | DB connection failed | Use `postgresql+asyncpg://` and `?sslmode=require` on Neon |
 | Empty dashboard | Connect wallet with SoDEX testnet trade history |
