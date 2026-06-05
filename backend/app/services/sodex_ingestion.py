@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.integrations.sodex.client import SodexClient
+from app.integrations.sodex.errors import SodexApiError
 from app.models.liquidity_snapshot import LiquiditySnapshot
 from app.models.sodex_account import SodexAccount
 from app.models.trade import Trade
@@ -38,10 +39,20 @@ class SodexIngestionService:
                 "message": "Expected a 0x-prefixed 40-byte wallet address from MetaMask/WalletConnect.",
             }
 
-        perps_state, spot_state = await asyncio.gather(
-            self.client.get_account_state(address, market_type="perps"),
-            self.client.get_account_state(address, market_type="spot"),
-        )
+        try:
+            perps_state, spot_state = await asyncio.gather(
+                self.client.get_account_state(address, market_type="perps", raise_on_error=True),
+                self.client.get_account_state(address, market_type="spot"),
+            )
+        except SodexApiError as exc:
+            return {
+                "account_id": None,
+                "trades_imported": 0,
+                "snapshots_imported": 0,
+                "account_state_found": False,
+                "error": exc.message,
+                "warnings": [exc.message],
+            }
         account_state = perps_state or spot_state
         account_id = None
         if account_state:
@@ -96,9 +107,11 @@ class SodexIngestionService:
     ) -> int:
         imported = 0
         pending: list[tuple[str, dict[str, Any]]] = []
-        for i, raw in enumerate(raw_trades):
-            external_id = str(raw.get("id") or raw.get("tradeId") or raw.get("fillId") or raw.get("tid") or f"sodex-{i}")
-            pending.append((external_id, raw))
+        for raw in raw_trades:
+            external_id = raw.get("id") or raw.get("tradeId") or raw.get("fillId") or raw.get("tid")
+            if external_id is None:
+                continue
+            pending.append((str(external_id), raw))
 
         if not pending:
             return 0
@@ -115,12 +128,22 @@ class SodexIngestionService:
             if external_id in existing_ids:
                 continue
 
-            symbol = str(raw.get("symbol") or raw.get("symbolName") or raw.get("name") or self.DEFAULT_SYMBOL)[:32]
+            symbol_raw = raw.get("symbol") or raw.get("symbolName") or raw.get("name")
+            if not symbol_raw:
+                continue
+            symbol = str(symbol_raw)[:32]
             side = self._normalize_side(raw.get("side"))
-            price = Decimal(str(raw.get("price") or raw.get("avgPrice") or raw.get("px") or 0))
-            quantity = Decimal(str(raw.get("quantity") or raw.get("size") or raw.get("qty") or raw.get("amount") or 0))
+            price_raw = raw.get("price") or raw.get("avgPrice") or raw.get("px")
+            qty_raw = raw.get("quantity") or raw.get("size") or raw.get("qty") or raw.get("amount")
+            ts_raw = raw.get("timestamp") or raw.get("time") or raw.get("createdAt") or raw.get("t")
+            if price_raw is None or qty_raw is None or ts_raw is None:
+                continue
+            price = Decimal(str(price_raw))
+            quantity = Decimal(str(qty_raw))
             pnl = raw.get("realizedPnl") or raw.get("realized_pnl") or raw.get("pnl") or raw.get("closedPnl")
-            executed_at = self._parse_ts(raw.get("timestamp") or raw.get("time") or raw.get("createdAt") or raw.get("t"))
+            executed_at = self._parse_ts(ts_raw)
+            if executed_at is None:
+                continue
 
             trade = Trade(
                 user_id=user_id,
@@ -196,9 +219,9 @@ class SodexIngestionService:
             return "short"
         return str(side or "long")
 
-    def _parse_ts(self, value: Any) -> datetime:
+    def _parse_ts(self, value: Any) -> datetime | None:
         if value is None:
-            return datetime.now(timezone.utc)
+            return None
         if isinstance(value, (int, float)):
             if value > 1_000_000_000_000:
                 value = value / 1000
@@ -206,4 +229,4 @@ class SodexIngestionService:
         try:
             return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
         except ValueError:
-            return datetime.now(timezone.utc)
+            return None

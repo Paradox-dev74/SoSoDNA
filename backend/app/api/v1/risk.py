@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -73,9 +73,15 @@ async def evaluate_pretrade_risk(
     )
     macro_nearby = macro_result.scalar_one_or_none() is not None
 
+    if not snapshot:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No live orderbook snapshot available. Sync SoDEX data before evaluating risk.",
+        )
+
     market_context = {
-        "spread_bps": float(snapshot.spread_bps) if snapshot else None,
-        "volatility_5m": float(snapshot.volatility_5m) if snapshot else 0.5,
+        "spread_bps": float(snapshot.spread_bps),
+        "volatility_5m": float(snapshot.volatility_5m) if snapshot.volatility_5m else None,
         "macro_events_nearby": macro_nearby,
     }
 

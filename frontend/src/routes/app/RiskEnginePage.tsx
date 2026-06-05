@@ -41,9 +41,9 @@ export function RiskEnginePage() {
       </div>
 
       <div className="panel rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-text-primary">Simulate Pre-Trade Entry</h3>
+        <h3 className="text-lg font-semibold text-text-primary">Pre-Trade Risk Check</h3>
         <p className="mt-2 text-sm text-text-muted">
-          Evaluate a hypothetical order against your imported trade history, latest orderbook snapshot, and macro events.
+          Evaluate a proposed order against imported trade history, latest orderbook snapshot, and macro events.
         </p>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-3">

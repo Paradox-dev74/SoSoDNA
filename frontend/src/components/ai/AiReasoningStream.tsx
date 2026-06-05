@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { Brain, CheckCircle2, Loader2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { wsClient } from '@/lib/websocket/client'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/stores/app-store'
@@ -23,8 +24,12 @@ const DEFAULT_PHASES = [
   'Writing forensic conclusion',
 ]
 
+let activeStreamCount = 0
+
 export function AiReasoningStream({ isActive = false, onComplete }: AiReasoningStreamProps) {
+  const queryClient = useQueryClient()
   const user = useAppStore((s) => s.user)
+  const streamGuard = useRef(false)
   const [phases, setPhases] = useState<AiPhase[]>(
     DEFAULT_PHASES.map((p) => ({ phase: p, status: 'pending' })),
   )
@@ -35,7 +40,10 @@ export function AiReasoningStream({ isActive = false, onComplete }: AiReasoningS
 
   useEffect(() => {
     if (!isActive || !user) return
+    if (activeStreamCount > 0) return
 
+    activeStreamCount += 1
+    streamGuard.current = true
     wsClient.connect(user.id)
 
     const resetPhases = () =>
@@ -81,6 +89,7 @@ export function AiReasoningStream({ isActive = false, onComplete }: AiReasoningS
       }
       setResult(res)
       onComplete?.(res)
+      queryClient.invalidateQueries({ queryKey: ['insights'] })
     }
 
     const onError = (data: Record<string, unknown>) => {
@@ -105,6 +114,10 @@ export function AiReasoningStream({ isActive = false, onComplete }: AiReasoningS
     wsClient.requestAiGeneration()
 
     return () => {
+      if (streamGuard.current) {
+        activeStreamCount = Math.max(0, activeStreamCount - 1)
+        streamGuard.current = false
+      }
       wsClient.off('ai.reasoning_started', onStarted)
       wsClient.off('ai.phase_changed', onPhase)
       wsClient.off('ai.evidence_found', onEvidence)
@@ -112,7 +125,7 @@ export function AiReasoningStream({ isActive = false, onComplete }: AiReasoningS
       wsClient.off('ai.error', onError)
       wsClient.off('ai.insufficient_evidence', onInsufficient)
     }
-  }, [isActive, user, onComplete])
+  }, [isActive, user, onComplete, queryClient])
 
   return (
     <div className="panel rounded-xl p-4">

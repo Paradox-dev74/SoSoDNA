@@ -10,6 +10,7 @@ from app.core.database import AsyncSessionLocal
 from app.core.security import verify_access_token
 from app.models.liquidity_snapshot import LiquiditySnapshot
 from app.models.sosovalue_event import SoSoValueEvent, event_display_title
+from app.models.ai_insight import AIInsight
 from app.models.trade import Trade
 from app.risk.engine import RiskEngine
 
@@ -164,6 +165,22 @@ async def _stream_ai_insight(websocket: WebSocket, user_id: str, payload: dict) 
             })
             return
 
+        db_payload = insight_engine.to_db_payload(output, target_trade.id if target_trade else None)
+        insight_row = AIInsight(
+            user_id=UUID(user_id),
+            trade_id=db_payload.get("trade_id"),
+            insight_type=db_payload["insight_type"],
+            severity=db_payload["severity"],
+            title=db_payload["title"],
+            summary=db_payload["summary"],
+            evidence=db_payload["evidence"],
+            recommendations=db_payload["recommendations"],
+            confidence=db_payload["confidence"],
+        )
+        db.add(insight_row)
+        await db.commit()
+        await db.refresh(insight_row)
+
     await websocket.send_json({"type": "ai.reasoning_started", "payload": {"user_id": user_id}})
     for i, phase in enumerate(phases):
         await websocket.send_json({
@@ -193,6 +210,7 @@ async def _stream_ai_insight(websocket: WebSocket, user_id: str, payload: dict) 
     await websocket.send_json({
         "type": "ai.insight_completed",
         "payload": {
+            "id": str(insight_row.id),
             "title": output.title,
             "claim": output.claim,
             "confidence": output.confidence,

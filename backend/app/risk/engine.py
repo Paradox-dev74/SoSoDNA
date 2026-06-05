@@ -67,8 +67,9 @@ class RiskEngine:
         elif market_context.get("spread_bps") is not None:
             spread_bps = float(market_context["spread_bps"])
         else:
-            spread_bps = 0.0
-        volatility_5m = float(market_context.get("volatility_5m", 0.5))
+            raise ValueError("Live orderbook spread evidence required for pre-trade risk evaluation.")
+        volatility_5m = market_context.get("volatility_5m")
+        volatility_5m = float(volatility_5m) if volatility_5m is not None else None
         time_since_loss_min = self._minutes_since_last_loss(recent_trades)
         macro_risk = 0.1 if market_context.get("macro_events_nearby") else 0.0
 

@@ -1,22 +1,26 @@
-import { Bell, Command, PanelRight, RefreshCw, Search } from 'lucide-react'
-import { useMutation } from '@tanstack/react-query'
+import { Command, PanelRight, RefreshCw } from 'lucide-react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { syncSodexData } from '@/lib/api/heatmaps'
+import { invalidateLiveDataQueries } from '@/lib/sync/invalidate'
 import { formatSyncLabel, formatSyncMessage, parseSyncResult } from '@/lib/sync-status'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/stores/app-store'
 
 export function TopBar() {
+  const queryClient = useQueryClient()
   const { user, toggleSidebar, toggleAiPanel, syncStatus, syncMessage, lastSyncSummary, setSyncStatus, setLastSyncSummary } =
     useAppStore()
 
   const resync = useMutation({
     mutationFn: syncSodexData,
     onMutate: () => setSyncStatus('syncing', 'Refreshing SoDEX and SoSoValue data...'),
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       const summary = parseSyncResult(result)
       setLastSyncSummary(summary)
-      setSyncStatus('synced', formatSyncMessage(summary))
+      const status = result.status === 'failed' ? 'error' : 'synced'
+      setSyncStatus(status, formatSyncMessage(summary))
+      await invalidateLiveDataQueries(queryClient)
     },
     onError: (err: Error) => setSyncStatus('error', err.message),
   })
@@ -51,11 +55,9 @@ export function TopBar() {
         <Button variant="ghost" size="icon" onClick={toggleSidebar}>
           <Command className="h-4 w-4" />
         </Button>
-        <button className="flex items-center gap-2 rounded-lg border border-white/8 bg-bg-elevated/50 px-3 py-1.5 text-sm text-text-muted transition-colors hover:border-white/15">
-          <Search className="h-3.5 w-3.5" />
-          <span>Search trades, insights...</span>
-          <kbd className="rounded bg-white/5 px-1.5 py-0.5 text-[10px]">⌘K</kbd>
-        </button>
+        <div className="hidden rounded-lg border border-white/8 bg-bg-elevated/50 px-3 py-1.5 text-sm text-text-muted md:block">
+          SOSO DNA · Live testnet analytics
+        </div>
       </div>
       <div className="flex items-center gap-3">
         <div className="hidden items-center gap-2 rounded-lg border border-white/8 px-3 py-1.5 md:flex" title={syncMessage ?? undefined}>
@@ -67,9 +69,6 @@ export function TopBar() {
             </Button>
           )}
         </div>
-        <Button variant="ghost" size="icon">
-          <Bell className="h-4 w-4" />
-        </Button>
         <Button variant="ghost" size="icon" onClick={toggleAiPanel}>
           <PanelRight className="h-4 w-4" />
         </Button>

@@ -5,6 +5,7 @@ import { useWalletAuth } from '@/features/wallet/useWalletAuth'
 import { Button } from '@/components/ui/button'
 import { getIntegrationHealth } from '@/lib/api/health'
 import { syncSodexData } from '@/lib/api/heatmaps'
+import { invalidateLiveDataQueries } from '@/lib/sync/invalidate'
 import { formatSyncLabel, formatSyncMessage, parseSyncResult } from '@/lib/sync-status'
 import { cn } from '@/lib/utils'
 
@@ -43,14 +44,12 @@ export function SettingsPage() {
   const resync = useMutation({
     mutationFn: syncSodexData,
     onMutate: () => setSyncStatus('syncing', 'Manual sync in progress...'),
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       const summary = parseSyncResult(result)
       setLastSyncSummary(summary)
-      setSyncStatus('synced', formatSyncMessage(summary))
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      queryClient.invalidateQueries({ queryKey: ['trades'] })
-      queryClient.invalidateQueries({ queryKey: ['dna'] })
-      queryClient.invalidateQueries({ queryKey: ['market-context'] })
+      const status = result.status === 'failed' ? 'error' : 'synced'
+      setSyncStatus(status, formatSyncMessage(summary))
+      await invalidateLiveDataQueries(queryClient)
       refetchHealth()
     },
     onError: (err: Error) => setSyncStatus('error', err.message),

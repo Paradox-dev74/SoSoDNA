@@ -20,12 +20,13 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    try:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        logger.info("Database tables ensured via create_all")
-    except Exception:
-        logger.exception("Database initialization failed — check DATABASE_URL and SSL settings")
+    if settings.is_local:
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            logger.info("Database tables ensured via create_all (local only)")
+        except Exception:
+            logger.exception("Database initialization failed — check DATABASE_URL and SSL settings")
     yield
 
 

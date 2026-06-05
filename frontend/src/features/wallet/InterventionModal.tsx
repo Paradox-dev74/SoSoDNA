@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { AlertTriangle, X } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import type { PreTradeRiskResponse } from '@/lib/api/risk'
 import { Button } from '@/components/ui/button'
 import { formatPercent } from '@/lib/utils'
@@ -71,13 +72,20 @@ export function InterventionModal({ open, onClose, risk }: InterventionModalProp
               <p className="mt-1 text-sm text-text-primary">{risk.recommended_action}</p>
             </div>
 
-            <div className="mt-6 flex gap-3">
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <Button variant="danger" className="flex-1" onClick={onClose}>
                 Acknowledge Risk
               </Button>
               <Button variant="secondary" className="flex-1" onClick={onClose}>
                 Wait for Better Setup
               </Button>
+              {risk.similarity_to_losing_setups <= 0.75 && (
+                <Link to="/app/execute" className="flex-1" onClick={onClose}>
+                  <Button variant="default" className="w-full">
+                    Proceed to Execute
+                  </Button>
+                </Link>
+              )}
             </div>
           </motion.div>
         </motion.div>

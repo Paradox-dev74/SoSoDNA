@@ -46,6 +46,9 @@ class SyncService:
         regime_stats = await self._derive_market_regimes(db)
 
         warnings: list[str] = list(ingestion.get("warnings", []))
+        errors: list[str] = []
+        if ingestion.get("error"):
+            errors.append(str(ingestion["error"]))
         if soso_stats.get("error"):
             warnings.append(str(soso_stats["error"]))
         if ingestion.get("trades_imported", 0) == 0 and ingestion.get("account_state_found"):
@@ -53,9 +56,16 @@ class SyncService:
         if ingestion.get("snapshots_imported", 0) == 0:
             warnings.append("No orderbook snapshots imported. Heatmaps and replay may be unavailable.")
 
+        if errors:
+            sync_status = "failed"
+        elif warnings or not ingestion.get("account_state_found"):
+            sync_status = "degraded"
+        else:
+            sync_status = "completed"
+
         await db.flush()
         return {
-            "status": "completed",
+            "status": sync_status,
             "account_id": ingestion.get("account_id"),
             "account_state_found": ingestion.get("account_state_found", False),
             "trades_imported": ingestion.get("trades_imported", 0),

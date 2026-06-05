@@ -36,3 +36,18 @@ def test_redis_memory_fallback_local_only():
 
     source = inspect.getsource(redis_client.cache_set)
     assert "_allow_memory_fallback" in source
+
+
+def test_trade_forensics_mock_graph_removed():
+    import importlib.util
+
+    assert importlib.util.find_spec("app.ai.graphs.trade_forensics") is None
+
+
+def test_sodex_client_raises_on_error_flag():
+    import inspect
+    from app.integrations.sodex import client
+
+    source = inspect.getsource(client.SodexClient._get)
+    assert "raise_on_error" in source
+    assert "SodexApiError" in source

@@ -1,13 +1,30 @@
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { AlertTriangle, CheckCircle2, Dna } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Dna, Loader2 } from 'lucide-react'
 import { BehaviorChart } from '@/components/charts/BehaviorChart'
 import { MetricTile } from '@/components/ui/metric-tile'
 import { getDnaProfile } from '@/lib/api/dna'
 import { formatPercent } from '@/lib/utils'
 
 export function TraderDnaPage() {
-  const { data: profile } = useQuery({ queryKey: ['dna'], queryFn: getDnaProfile })
+  const { data: profile, isLoading, error } = useQuery({ queryKey: ['dna'], queryFn: getDnaProfile })
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center gap-2 text-text-muted">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        Loading DNA profile...
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="panel rounded-xl p-6 text-sm text-red-300">
+        Failed to load DNA profile. Sync SoDEX data from Settings or the top bar.
+      </div>
+    )
+  }
 
   const hasLiveAnalysis = profile?.data_status === 'live_analysis'
   const chartData = hasLiveAnalysis ? profile.metrics.map((m) => ({ name: m.label.split(' ')[0], value: m.value })) : []
