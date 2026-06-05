@@ -10,7 +10,7 @@ import {
   Shield,
   Zap,
 } from 'lucide-react'
-import { NavLink } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 import { Logo } from '@/components/brand/Logo'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/stores/app-store'
@@ -46,7 +46,13 @@ export function Sidebar() {
       className="relative z-10 flex flex-col border-r border-white/8 bg-bg-surface/80 backdrop-blur-xl"
     >
       <div className="flex h-14 items-center gap-2 overflow-hidden border-b border-white/8 px-4">
-        <Logo size="sm" showText={!collapsed} />
+        <Link
+          to="/"
+          className="rounded-lg transition-opacity hover:opacity-80"
+          title="Back to landing page"
+        >
+          <Logo size="sm" showText={!collapsed} />
+        </Link>
       </div>
       <nav className="flex-1 space-y-1 p-2">
         {navItems.map((item) => (
