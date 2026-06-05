@@ -17,7 +17,7 @@ def test_demo_bypass_only_local():
 
 def test_async_database_url_normalizes_neon_postgres_url():
     settings = Settings(database_url="postgresql://user:pass@host/db?sslmode=require")
-    assert settings.async_database_url == "postgresql+asyncpg://user:pass@host/db?sslmode=require"
+    assert settings.async_database_url == "postgresql+asyncpg://user:pass@host/db"
 
 
 def test_cors_origin_list_includes_frontend_url():
@@ -46,3 +46,20 @@ def test_production_sync_url_falls_back_from_sqlite_to_database_url():
     )
     assert settings.sync_database_url.startswith("postgresql://")
     assert "neon.tech" in settings.sync_database_url
+
+
+def test_asyncpg_url_strips_libpq_query_params():
+    settings = Settings(
+        database_url=(
+            "postgresql://user:pass@ep-test-pooler.neon.tech/neondb"
+            "?sslmode=require&channel_binding=require"
+        ),
+    )
+    assert settings.uses_neon_pooler is True
+    assert "sslmode" not in settings.async_database_url
+    assert settings.async_database_url.startswith("postgresql+asyncpg://")
+
+
+def test_cors_origins_strip_trailing_slash():
+    settings = Settings(cors_origins="https://soso-dna.vercel.app/")
+    assert settings.cors_origin_list == ["https://soso-dna.vercel.app"]

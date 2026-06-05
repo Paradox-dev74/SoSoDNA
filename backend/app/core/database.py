@@ -11,6 +11,9 @@ settings = get_settings()
 _connect_args: dict = {}
 if settings.database_requires_ssl:
     _connect_args["ssl"] = ssl.create_default_context()
+if settings.uses_neon_pooler:
+    # Required for Neon pooler (PgBouncer) + asyncpg
+    _connect_args["statement_cache_size"] = 0
 
 engine = create_async_engine(
     settings.async_database_url,

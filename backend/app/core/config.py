@@ -1,4 +1,6 @@
 from functools import lru_cache
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -37,7 +39,11 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> list[str]:
-        origins = [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        origins = []
+        for origin in self.cors_origins.split(","):
+            cleaned = origin.strip().rstrip("/")
+            if cleaned and cleaned not in origins:
+                origins.append(cleaned)
         if self.frontend_url:
             url = self.frontend_url.strip().rstrip("/")
             if url and url not in origins:
@@ -47,7 +53,11 @@ class Settings(BaseSettings):
     @property
     def async_database_url(self) -> str:
         """Neon/Vercel Postgres URLs are often sync `postgresql://`; SQLAlchemy async needs asyncpg."""
-        return self._to_async_database_url(self.database_url)
+        return self._clean_asyncpg_url(self._to_async_database_url(self.database_url))
+
+    @property
+    def uses_neon_pooler(self) -> bool:
+        return "-pooler" in self.database_url
 
     @property
     def sync_database_url(self) -> str:
@@ -68,6 +78,17 @@ class Settings(BaseSettings):
         if url.startswith("postgres://"):
             return url.replace("postgres://", "postgresql+asyncpg://", 1)
         return url
+
+    @staticmethod
+    def _clean_asyncpg_url(url: str) -> str:
+        """asyncpg does not understand libpq params like sslmode/channel_binding in the URL."""
+        parsed = urlparse(url)
+        filtered = [
+            (key, value)
+            for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+            if key not in {"sslmode", "channel_binding", "ssl"}
+        ]
+        return urlunparse(parsed._replace(query=urlencode(filtered)))
 
     @property
     def database_requires_ssl(self) -> bool:

@@ -13,12 +13,14 @@ async def get_integration_health() -> dict:
     redis_ok = False
     sodex_ok = False
 
+    db_error = None
     try:
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
             db_ok = True
-    except Exception:
+    except Exception as exc:
         db_ok = False
+        db_error = type(exc).__name__
 
     try:
         client = await get_redis()
@@ -64,6 +66,9 @@ async def get_integration_health() -> dict:
         payload["database_hint"] = (
             "Set DATABASE_URL on Render to your Neon PostgreSQL URL "
             "(postgresql://user:pass@ep-xxx.neon.tech/neondb?sslmode=require). "
-            "Do not use sqlite for DATABASE_URL_SYNC in production."
+            "If using the pooler host, redeploy after latest API build. "
+            "Try the direct (non-pooler) Neon hostname if connection still fails."
         )
+        if db_error:
+            payload["database_error"] = db_error
     return payload
