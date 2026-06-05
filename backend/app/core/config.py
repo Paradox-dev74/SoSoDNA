@@ -52,7 +52,9 @@ class Settings(BaseSettings):
     @property
     def sync_database_url(self) -> str:
         """Sync driver URL for Alembic/psycopg2."""
-        url = self.database_url_sync
+        url = self.database_url_sync.strip()
+        if not self.is_local and (not url or url.startswith("sqlite")):
+            url = self.database_url.strip()
         if url.startswith("postgres://"):
             return url.replace("postgres://", "postgresql://", 1)
         return url

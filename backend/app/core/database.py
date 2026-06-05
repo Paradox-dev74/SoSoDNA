@@ -1,3 +1,4 @@
+import ssl
 from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -7,7 +8,9 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-_connect_args = {"ssl": True} if settings.database_requires_ssl else {}
+_connect_args: dict = {}
+if settings.database_requires_ssl:
+    _connect_args["ssl"] = ssl.create_default_context()
 
 engine = create_async_engine(
     settings.async_database_url,

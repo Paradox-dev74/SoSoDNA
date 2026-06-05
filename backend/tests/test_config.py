@@ -36,3 +36,13 @@ def test_neon_urls_enable_ssl_and_sync_normalization():
     assert settings.database_requires_ssl is True
     assert settings.async_database_url.startswith("postgresql+asyncpg://")
     assert settings.sync_database_url.startswith("postgresql://")
+
+
+def test_production_sync_url_falls_back_from_sqlite_to_database_url():
+    settings = Settings(
+        app_env="production",
+        database_url="postgresql://user:pass@ep-test.neon.tech/neondb?sslmode=require",
+        database_url_sync="sqlite:///./liquidity_dna.db",
+    )
+    assert settings.sync_database_url.startswith("postgresql://")
+    assert "neon.tech" in settings.sync_database_url

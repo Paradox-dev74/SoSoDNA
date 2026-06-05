@@ -45,7 +45,7 @@ async def get_integration_health() -> dict:
         sodex_ok = False
 
     api_key = settings.sosovalue_api_key.strip()
-    return {
+    payload = {
         "status": "ok" if db_ok and sodex_ok else "degraded",
         "service": "soso-dna",
         "app_env": settings.app_env,
@@ -60,3 +60,10 @@ async def get_integration_health() -> dict:
             "sodex_env": settings.sodex_env,
         },
     }
+    if not db_ok:
+        payload["database_hint"] = (
+            "Set DATABASE_URL on Render to your Neon PostgreSQL URL "
+            "(postgresql://user:pass@ep-xxx.neon.tech/neondb?sslmode=require). "
+            "Do not use sqlite for DATABASE_URL_SYNC in production."
+        )
+    return payload
