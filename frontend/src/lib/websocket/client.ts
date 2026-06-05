@@ -10,6 +10,12 @@ function resolveWsBase(): string {
   return `${proto}//${window.location.host}`
 }
 
+function resolveWsPath(userId: string): string {
+  // Vercel mounts the FastAPI service at /api; local dev talks to the API origin directly.
+  const route = API_URL || WS_URL ? 'ws/user' : 'api/ws/user'
+  return `/${route}/${userId}`
+}
+
 export class WebSocketClient {
   private ws: WebSocket | null = null
   private handlers: Map<string, MessageHandler[]> = new Map()
@@ -21,7 +27,7 @@ export class WebSocketClient {
     if (!token) return
 
     const base = resolveWsBase()
-    const url = `${base}/ws/user/${userId}?token=${encodeURIComponent(token)}`
+    const url = `${base}${resolveWsPath(userId)}?token=${encodeURIComponent(token)}`
     this.ws = new WebSocket(url)
 
     this.ws.onmessage = (event) => {

@@ -11,12 +11,12 @@ This repo uses **Vercel Services** (multi-service monorepo): a Vite frontend and
 
 Vercel should detect:
 
-| Service  | Routes                         | Framework |
+| Service  | Mount / routes                 | Framework |
 |----------|--------------------------------|-----------|
 | frontend | `/` (catch-all SPA)            | Vite      |
-| backend  | `/api`, `/health`, `/ws`       | FastAPI   |
+| backend  | `/api` (API + WebSocket)       | FastAPI   |
 
-Root `vercel.json` defines both services via `experimentalServices`. The backend uses `routing.paths` so it does not share the frontend’s `/` mount.
+Root `vercel.json` defines both services via `experimentalServices`. The backend is mounted at `/api` so it does not share the frontend’s `/` mount.
 
 ## 2. External services (required)
 
@@ -74,7 +74,7 @@ Click **Deploy**. After the first deploy:
 ## 5. Verify
 
 - `https://your-app.vercel.app` — landing page
-- `https://your-app.vercel.app/health` — API health
+- `https://your-app.vercel.app/api/v1/health/integrations` — API health
 - `https://your-app.vercel.app/connect` — wallet connect
 - Connect wallet → sync → dashboard
 
@@ -92,7 +92,8 @@ vercel dev
 | Issue | Fix |
 |-------|-----|
 | `vercel.json required` | Ensure root `vercel.json` exists and Framework = **Services** |
-| `cannot share routePrefix "/"` | Backend must use `routing.paths` (not `routePrefix: "/"`) |
+| `cannot share routePrefix "/"` | Backend must use a different `mount` (e.g. `/api`) |
+| `should NOT have additional property routing` | Use `mount` instead of `routing` on current Vercel CLI |
 | CORS errors | Add Vercel URL to `CORS_ORIGINS` |
 | DB connection failed | Use `postgresql+asyncpg://` and `?sslmode=require` on Neon |
 | Empty dashboard | Connect wallet with SoDEX testnet trade history |

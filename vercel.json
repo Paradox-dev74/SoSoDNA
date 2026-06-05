@@ -9,9 +9,7 @@
     "backend": {
       "entrypoint": "backend",
       "framework": "fastapi",
-      "routing": {
-        "paths": ["/api", "/health", "/ws"]
-      },
+      "mount": "/api",
       "maxDuration": 60,
       "memory": 1024
     }

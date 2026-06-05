@@ -35,6 +35,7 @@ manager = ConnectionManager()
 
 
 @ws_router.websocket("/ws/user/{user_id}")
+@ws_router.websocket("/api/ws/user/{user_id}")
 async def user_stream(
     websocket: WebSocket,
     user_id: str,
