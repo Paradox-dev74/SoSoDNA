@@ -19,7 +19,7 @@ class SodexClient:
     def __init__(self) -> None:
         self.perps_base = settings.sodex_perps_rest.rstrip("/")
         self.spot_base = settings.sodex_spot_rest.rstrip("/")
-        self.timeout = httpx.Timeout(15.0)
+        self.timeout = httpx.Timeout(8.0)
 
     def normalize_symbol(self, symbol: str) -> str:
         return SYMBOL_ALIASES.get(symbol.upper(), symbol)

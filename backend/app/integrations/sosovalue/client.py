@@ -14,7 +14,7 @@ class SoSoValueClient:
     def __init__(self) -> None:
         self.base_url = settings.sosovalue_base_url.rstrip("/")
         self.api_key = settings.sosovalue_api_key
-        self.timeout = httpx.Timeout(15.0)
+        self.timeout = httpx.Timeout(8.0)
 
     def _headers(self) -> dict[str, str]:
         headers = {"Accept": "application/json"}

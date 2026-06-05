@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
@@ -37,8 +38,10 @@ class SodexIngestionService:
                 "message": "Expected a 0x-prefixed 40-byte wallet address from MetaMask/WalletConnect.",
             }
 
-        perps_state = await self.client.get_account_state(address, market_type="perps")
-        spot_state = await self.client.get_account_state(address, market_type="spot")
+        perps_state, spot_state = await asyncio.gather(
+            self.client.get_account_state(address, market_type="perps"),
+            self.client.get_account_state(address, market_type="spot"),
+        )
         account_state = perps_state or spot_state
         account_id = None
         if account_state:
@@ -61,11 +64,13 @@ class SodexIngestionService:
                 db.add(sodex_account)
                 await db.flush()
 
-        raw_trades = await self.client.get_trades(address, limit=500, market_type="perps")
-        spot_trades = await self.client.get_trades(address, limit=500, market_type="spot")
+        raw_trades, spot_trades = await asyncio.gather(
+            self.client.get_trades(address, limit=200, market_type="perps"),
+            self.client.get_trades(address, limit=200, market_type="spot"),
+        )
         if not raw_trades:
             raw_trades = await self.client.get_trades(
-                address, symbol=self.DEFAULT_SYMBOL, limit=500, market_type="perps"
+                address, symbol=self.DEFAULT_SYMBOL, limit=200, market_type="perps"
             )
         combined_trades = raw_trades + [t for t in spot_trades if t not in raw_trades]
 
@@ -90,12 +95,24 @@ class SodexIngestionService:
         raw_trades: list[dict[str, Any]],
     ) -> int:
         imported = 0
+        pending: list[tuple[str, dict[str, Any]]] = []
         for i, raw in enumerate(raw_trades):
             external_id = str(raw.get("id") or raw.get("tradeId") or raw.get("fillId") or raw.get("tid") or f"sodex-{i}")
-            existing = await db.execute(
-                select(Trade).where(Trade.user_id == user_id, Trade.external_trade_id == external_id)
+            pending.append((external_id, raw))
+
+        if not pending:
+            return 0
+
+        existing_result = await db.execute(
+            select(Trade.external_trade_id).where(
+                Trade.user_id == user_id,
+                Trade.external_trade_id.in_([external_id for external_id, _ in pending]),
             )
-            if existing.scalar_one_or_none():
+        )
+        existing_ids = set(existing_result.scalars().all())
+
+        for external_id, raw in pending:
+            if external_id in existing_ids:
                 continue
 
             symbol = str(raw.get("symbol") or raw.get("symbolName") or raw.get("name") or self.DEFAULT_SYMBOL)

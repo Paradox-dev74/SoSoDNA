@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -71,27 +72,51 @@ class SyncService:
             return {"synced": 0, "error": "missing_sosovalue_api_key"}
 
         synced = 0
-        news = await self.sosovalue.get_hot_news()
-        macro = await self.sosovalue.get_macro_events()
-        pair = await self.sosovalue.get_pair_market("BTC")
+        news, macro, pair = await asyncio.gather(
+            self.sosovalue.get_hot_news(),
+            self.sosovalue.get_macro_events(),
+            self.sosovalue.get_pair_market("BTC"),
+        )
 
+        candidates: list[tuple[str, dict]] = []
         for event_type, items in [("news", news), ("macro", macro)]:
-            for item in items[:20]:
-                if await self._upsert_event(db, event_type, item):
-                    synced += 1
+            for item in items[:10]:
+                candidates.append((event_type, item))
 
         if pair:
             source_id = f"pair-market-btc-{pair.get('symbol', 'BTC')}"
-            if await self._upsert_event(db, "pair_market", {"id": source_id, **pair}):
+            candidates.append(("pair_market", {"id": source_id, **pair}))
+
+        source_ids = [
+            str(item.get("id") or item.get("eventId") or item.get("title") or item.get("name", "unknown"))
+            for _, item in candidates
+        ]
+        existing_result = await db.execute(
+            select(SoSoValueEvent.source_id).where(SoSoValueEvent.source_id.in_(source_ids))
+        )
+        existing_ids = set(existing_result.scalars().all())
+
+        for event_type, item in candidates:
+            if await self._upsert_event(db, event_type, item, existing_ids):
                 synced += 1
 
         return {"synced": synced}
 
-    async def _upsert_event(self, db: AsyncSession, event_type: str, item: dict) -> bool:
+    async def _upsert_event(
+        self,
+        db: AsyncSession,
+        event_type: str,
+        item: dict,
+        existing_ids: set[str] | None = None,
+    ) -> bool:
         source_id = str(item.get("id") or item.get("eventId") or item.get("title") or item.get("name", "unknown"))
-        existing = await db.execute(select(SoSoValueEvent).where(SoSoValueEvent.source_id == source_id))
-        if existing.scalar_one_or_none():
-            return False
+        if existing_ids is not None:
+            if source_id in existing_ids:
+                return False
+        else:
+            existing = await db.execute(select(SoSoValueEvent).where(SoSoValueEvent.source_id == source_id))
+            if existing.scalar_one_or_none():
+                return False
 
         published_at = self._parse_published_at(item)
         symbols = item.get("symbols") or item.get("tickers") or ["BTC"]
