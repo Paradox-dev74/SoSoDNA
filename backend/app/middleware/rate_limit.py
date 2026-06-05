@@ -16,6 +16,9 @@ _buckets: dict[str, list[float]] = defaultdict(list)
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         path = request.url.path
         limit_rule = RATE_LIMITED_PATHS.get(path)
         if not limit_rule:

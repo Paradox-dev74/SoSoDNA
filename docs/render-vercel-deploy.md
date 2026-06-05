@@ -19,7 +19,8 @@ Use this split when Vercel serverless Python is unreliable. The frontend stays o
 | `REDIS_URL` | **Upstash Redis** URL (required for wallet sign-in) |
 | `SECRET_KEY` | Long random string |
 | `SOSOVALUE_API_KEY` | Your key |
-| `CORS_ORIGINS` | `https://soso-dna.vercel.app` (your Vercel URL) |
+| `CORS_ORIGINS` | `https://soso-dna.vercel.app,http://localhost:5173` |
+| `FRONTEND_URL` | `https://soso-dna.vercel.app` (optional extra allowlist) |
 | `DEMO_MODE` | `false` |
 | `CHAIN_ID` | `138565` |
 
@@ -70,7 +71,7 @@ Leave `VITE_API_URL` empty only if the API is served from the same Vercel domain
 | Symptom | Fix |
 |---------|-----|
 | Still calling `soso-dna.vercel.app/api/...` | Set `VITE_API_URL` on Vercel and **redeploy** frontend |
-| CORS error | Add Vercel URL to Render `CORS_ORIGINS` |
+| CORS error | Set Render `CORS_ORIGINS=https://soso-dna.vercel.app` and redeploy API. Code also allows `*.vercel.app` via regex. |
 | 503 on nonce | Set `REDIS_URL` on Render (Upstash) |
 | 500 on Render `/health` | Check Render logs; fix `DATABASE_URL` |
 | 404 on Render | Wrong service URL or API not running |

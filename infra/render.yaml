@@ -21,7 +21,9 @@ services:
       - key: SOSOVALUE_API_KEY
         sync: false
       - key: CORS_ORIGINS
-        sync: false
+        value: "https://soso-dna.vercel.app,http://localhost:5173,http://127.0.0.1:5173"
+      - key: FRONTEND_URL
+        value: "https://soso-dna.vercel.app"
       - key: CHAIN_ID
         value: "138565"
 

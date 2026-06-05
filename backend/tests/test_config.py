@@ -18,3 +18,11 @@ def test_demo_bypass_only_local():
 def test_async_database_url_normalizes_neon_postgres_url():
     settings = Settings(database_url="postgresql://user:pass@host/db?sslmode=require")
     assert settings.async_database_url == "postgresql+asyncpg://user:pass@host/db?sslmode=require"
+
+
+def test_cors_origin_list_includes_frontend_url():
+    settings = Settings(
+        cors_origins="http://localhost:5173",
+        frontend_url="https://soso-dna.vercel.app",
+    )
+    assert "https://soso-dna.vercel.app" in settings.cors_origin_list

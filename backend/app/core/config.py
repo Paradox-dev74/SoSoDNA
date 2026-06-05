@@ -17,7 +17,9 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
 
-    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,https://soso-dna.vercel.app"
+    cors_origin_regex: str = r"https://.*\.vercel\.app"
+    frontend_url: str = ""
 
     sodex_env: str = "testnet"
     sodex_spot_rest: str = "https://testnet-gw.sodex.dev/api/v1/spot"
@@ -35,7 +37,12 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> list[str]:
-        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        origins = [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        if self.frontend_url:
+            url = self.frontend_url.strip().rstrip("/")
+            if url and url not in origins:
+                origins.append(url)
+        return origins
 
     @property
     def async_database_url(self) -> str:
