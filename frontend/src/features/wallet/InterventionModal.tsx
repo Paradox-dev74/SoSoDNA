@@ -79,10 +79,10 @@ export function InterventionModal({ open, onClose, risk }: InterventionModalProp
               <Button variant="secondary" className="flex-1" onClick={onClose}>
                 Wait for Better Setup
               </Button>
-              {risk.similarity_to_losing_setups <= 0.75 && (
+              {risk.similarity_to_losing_setups < 0.75 && (
                 <Link to="/app/execute" className="flex-1" onClick={onClose}>
                   <Button variant="default" className="w-full">
-                    Proceed to Execute
+                    Open Execution Handoff
                   </Button>
                 </Link>
               )}

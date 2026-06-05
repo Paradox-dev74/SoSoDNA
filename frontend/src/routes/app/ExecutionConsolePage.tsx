@@ -1,149 +1,82 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, CheckCircle2, Loader2, Zap } from 'lucide-react'
+import { AlertTriangle, ExternalLink, Loader2, RefreshCw, Zap } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { getExecutionMarkets, previewOrder, submitSignedOrder } from '@/lib/api/execution'
-import { invalidateLiveDataQueries } from '@/lib/sync/invalidate'
-import { formatPercent } from '@/lib/utils'
+import { getExecutionMarkets } from '@/lib/api/execution'
+import { syncSodexData } from '@/lib/api/heatmaps'
+import { evaluatePreTradeRisk } from '@/lib/api/risk'
 import {
-  clearSodexCredentials,
-  getSodexCredentials,
-  signSodexPerpsOrder,
-  storeSodexCredentials,
-} from '@/lib/sodex/signing'
+  buildSodexTradeUrl,
+  formatHandoffInstructions,
+  RISK_BLOCK_THRESHOLD,
+} from '@/lib/sodex/handoff'
+import { invalidateLiveDataQueries } from '@/lib/sync/invalidate'
+import { formatSyncMessage, parseSyncResult } from '@/lib/sync-status'
+import { formatPercent } from '@/lib/utils'
+import { useAppStore } from '@/stores/app-store'
 
 const SYMBOLS = ['BTC-USD', 'ETH-USD', 'SOL-USD']
 
 export function ExecutionConsolePage() {
   const queryClient = useQueryClient()
-  const [confirmed, setConfirmed] = useState(false)
+  const { setSyncStatus, setLastSyncSummary } = useAppStore()
+  const [handoffOpened, setHandoffOpened] = useState(false)
   const [symbol, setSymbol] = useState('BTC-USD')
   const [side, setSide] = useState<'long' | 'short'>('long')
   const [sizeUsd, setSizeUsd] = useState(50)
-  const [apiKeyName, setApiKeyName] = useState(getSodexCredentials()?.apiKeyName ?? '')
-  const [apiKeyPrivateKey, setApiKeyPrivateKey] = useState('')
-  const [submitError, setSubmitError] = useState<string | null>(null)
-  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null)
 
   const { data: markets } = useQuery({
     queryKey: ['execution-markets', symbol],
     queryFn: () => getExecutionMarkets(symbol),
   })
 
-  const preview = useMutation({
-    mutationFn: () => previewOrder({ symbol, side, size_usd: sizeUsd, order_type: 'market' }),
-    onMutate: () => {
-      setConfirmed(false)
-      setSubmitError(null)
-      setSubmitSuccess(null)
-    },
+  const riskPreview = useMutation({
+    mutationFn: () => evaluatePreTradeRisk(symbol, side, sizeUsd),
+    onSuccess: () => setHandoffOpened(false),
   })
 
-  const submit = useMutation({
-    mutationFn: async () => {
-      const previewData = preview.data
-      if (!previewData) throw new Error('Run risk preview before submitting.')
-      if (!previewData.risk_allowed) throw new Error(previewData.risk_blocked_reason ?? 'Risk gate blocked order.')
-      if (!confirmed) throw new Error('Confirm order details before submitting.')
-
-      const creds = getSodexCredentials()
-      if (!creds?.apiKeyName || !creds.apiKeyPrivateKey) {
-        throw new Error('SoDEX API key credentials required for signed order submission.')
-      }
-
-      const apiSign = await signSodexPerpsOrder(creds.apiKeyPrivateKey as `0x${string}`, {
-        signing_domain: previewData.signing_domain,
-        signing_types: previewData.signing_types,
-        signing_message: previewData.signing_message,
-      })
-
-      return submitSignedOrder({
-        request_body: previewData.request_body,
-        api_key_name: creds.apiKeyName,
-        api_sign: apiSign,
-        api_nonce: String(previewData.signing_nonce),
-      })
-    },
+  const resync = useMutation({
+    mutationFn: syncSodexData,
+    onMutate: () => setSyncStatus('syncing', 'Importing trades from SoDEX...'),
     onSuccess: async (result) => {
-      if (result.success) {
-        setSubmitSuccess(
-          result.order_id
-            ? `Order ${result.order_id} submitted on SoDEX testnet.`
-            : `Order ${result.cl_ord_id ?? ''} submitted on SoDEX testnet.`,
-        )
-        await invalidateLiveDataQueries(queryClient)
-      } else {
-        setSubmitError(result.error ?? 'SoDEX rejected the order.')
-      }
+      const summary = parseSyncResult(result)
+      setLastSyncSummary(summary)
+      setSyncStatus(result.status === 'failed' ? 'error' : 'synced', formatSyncMessage(summary))
+      await invalidateLiveDataQueries(queryClient)
     },
-    onError: (err: Error) => setSubmitError(err.message),
+    onError: (err: Error) => setSyncStatus('error', err.message),
   })
 
-  const saveCredentials = () => {
-    if (!apiKeyName.trim() || !apiKeyPrivateKey.trim()) return
-    const key = apiKeyPrivateKey.startsWith('0x') ? apiKeyPrivateKey : `0x${apiKeyPrivateKey}`
-    storeSodexCredentials({ apiKeyName: apiKeyName.trim(), apiKeyPrivateKey: key })
-    setApiKeyPrivateKey('')
-  }
-
-  const risk = preview.data?.risk
+  const risk = riskPreview.data
   const market = markets?.[0]
+  const riskBlocked = risk ? risk.similarity_to_losing_setups >= RISK_BLOCK_THRESHOLD : false
+  const handoffUrl = buildSodexTradeUrl({ symbol, side })
+  const instructions = formatHandoffInstructions({ symbol, side, sizeUsd })
+
+  const openSodex = () => {
+    window.open(handoffUrl, '_blank', 'noopener,noreferrer')
+    setHandoffOpened(true)
+  }
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-text-primary">Execution Console</h1>
         <p className="text-sm text-text-muted">
-          Live SoDEX testnet order submission — risk-gated with EIP-712 signed API requests
+          Risk-gated handoff to SoDEX testnet — execute with your connected wallet on SoDEX, then sync back here
         </p>
       </div>
 
       <div className="panel rounded-xl border border-blue-400/20 bg-blue-400/5 p-6">
         <p className="text-sm text-blue-100">
-          Orders are placed on SoDEX testnet via your SoDEX API key (not wallet custody). Credentials stay in this
-          browser session only and are never stored on our backend.
+          SOSO DNA does not custody funds or store trading keys. After the risk check, you place the order directly on
+          SoDEX testnet with your wallet, then return here to sync imported trades.
         </p>
-      </div>
-
-      <div className="panel rounded-xl p-6">
-        <h3 className="text-sm font-semibold text-text-primary">SoDEX API Key (session only)</h3>
-        <p className="mt-1 text-xs text-text-muted">
-          Create an API key on testnet.sodex.com. Enter the key name and signing private key below.
-        </p>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <label className="text-sm">
-            <span className="text-text-muted">API Key Name</span>
-            <input
-              className="mt-1 w-full rounded-lg border border-white/10 bg-bg-elevated px-3 py-2"
-              value={apiKeyName}
-              onChange={(e) => setApiKeyName(e.target.value)}
-              placeholder="api-key-01"
-            />
-          </label>
-          <label className="text-sm">
-            <span className="text-text-muted">API Key Private Key</span>
-            <input
-              type="password"
-              className="mt-1 w-full rounded-lg border border-white/10 bg-bg-elevated px-3 py-2"
-              value={apiKeyPrivateKey}
-              onChange={(e) => setApiKeyPrivateKey(e.target.value)}
-              placeholder="0x..."
-            />
-          </label>
-        </div>
-        <div className="mt-3 flex gap-2">
-          <Button variant="secondary" size="sm" onClick={saveCredentials}>
-            Save for Session
-          </Button>
-          <Button variant="ghost" size="sm" onClick={clearSodexCredentials}>
-            Clear
-          </Button>
-        </div>
       </div>
 
       <div className="panel rounded-xl p-6">
         <h3 className="flex items-center gap-2 text-lg font-semibold text-text-primary">
-          <Zap className="h-5 w-5 text-gold" /> Order Builder
+          <Zap className="h-5 w-5 text-gold" /> Order Plan
         </h3>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
@@ -192,18 +125,18 @@ export function ExecutionConsolePage() {
           </p>
         )}
 
-        <Button className="mt-4" onClick={() => preview.mutate()} disabled={preview.isPending}>
-          {preview.isPending ? (
+        <Button className="mt-4" onClick={() => riskPreview.mutate()} disabled={riskPreview.isPending}>
+          {riskPreview.isPending ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Evaluating risk...
             </>
           ) : (
-            'Run Live Risk Preview'
+            'Run Live Risk Check'
           )}
         </Button>
 
-        {preview.isError && (
-          <p className="mt-3 text-sm text-red-300">{(preview.error as Error).message}</p>
+        {riskPreview.isError && (
+          <p className="mt-3 text-sm text-red-300">{(riskPreview.error as Error).message}</p>
         )}
 
         {risk && (
@@ -219,50 +152,54 @@ export function ExecutionConsolePage() {
               <span className="text-text-primary">{risk.severity}</span>
             </div>
             <p className="text-sm text-text-muted">{risk.summary}</p>
+            <p className="text-xs text-text-muted">{risk.recommended_action}</p>
 
-            {!preview.data?.risk_allowed && (
+            {riskBlocked ? (
               <div className="flex items-start gap-2 rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-200">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <p>{preview.data?.risk_blocked_reason}</p>
+                <p>
+                  Risk threshold exceeded ({formatPercent(RISK_BLOCK_THRESHOLD)}). Wait for a better setup before
+                  executing on SoDEX.
+                </p>
               </div>
-            )}
-
-            {preview.data?.risk_allowed && (
+            ) : (
               <>
-                <label className="flex items-center gap-2 text-sm text-text-muted">
-                  <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
-                  I confirm this live testnet order and understand it will execute on SoDEX.
-                </label>
-                <Button
-                  className="w-full"
-                  disabled={!confirmed || submit.isPending || !getSodexCredentials()}
-                  onClick={() => submit.mutate()}
-                >
-                  {submit.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting to SoDEX...
-                    </>
-                  ) : (
-                    'Submit Live Order'
-                  )}
+                <div className="rounded-lg border border-gold/20 bg-gold/5 p-3 text-sm text-gold/90">{instructions}</div>
+                <Button className="w-full" onClick={openSodex}>
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Execute on SoDEX Testnet
                 </Button>
-                {!getSodexCredentials() && (
-                  <p className="text-xs text-amber-200">Save SoDEX API key credentials before submitting.</p>
-                )}
               </>
             )}
           </div>
         )}
       </div>
 
-      {submitSuccess && (
-        <div className="flex items-start gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-200">
-          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-          <p>{submitSuccess}</p>
+      {handoffOpened && (
+        <div className="panel rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-6">
+          <h3 className="text-sm font-semibold text-emerald-200">After you trade on SoDEX</h3>
+          <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-text-muted">
+            <li>Complete the order on SoDEX with the same wallet you use in SOSO DNA.</li>
+            <li>Return to this tab and sync to import the new trade.</li>
+            <li>Check Dashboard, DNA, and Replay for updated analysis.</li>
+          </ol>
+          <Button
+            className="mt-4"
+            variant="secondary"
+            onClick={() => resync.mutate()}
+            disabled={resync.isPending}
+          >
+            {resync.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Syncing...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" /> I placed my trade — Sync now
+              </>
+            )}
+          </Button>
         </div>
-      )}
-      {submitError && (
-        <div className="rounded-xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-200">{submitError}</div>
       )}
     </div>
   )
