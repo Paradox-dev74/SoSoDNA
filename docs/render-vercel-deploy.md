@@ -14,8 +14,8 @@ Use this split when Vercel serverless Python is unreliable. The frontend stays o
 | Variable | Value |
 |----------|-------|
 | `APP_ENV` | `production` |
-| `DATABASE_URL` | Neon URL (`postgresql://...` is fine) |
-| `DATABASE_URL_SYNC` | Same DB, sync URL (`postgresql://...`) |
+| `DATABASE_URL` | Neon URL, e.g. `postgresql://user:pass@ep-xxx.neon.tech/neondb?sslmode=require` |
+| `DATABASE_URL_SYNC` | **Same Neon DB**, sync URL: `postgresql://user:pass@ep-xxx.neon.tech/neondb?sslmode=require` (do not use SQLite on Render) |
 | `REDIS_URL` | **Upstash Redis** connection URL (required for wallet sign-in). Copy the `rediss://...` string from Upstash Console → Connect — **not** the `https://...` REST URL |
 | `SECRET_KEY` | Long random string |
 | `SOSOVALUE_API_KEY` | Your key |
@@ -35,7 +35,7 @@ curl -X POST https://YOUR-RENDER-URL.onrender.com/api/v1/auth/nonce \
   -d '{"address":"0x5c5600000000000000000000000000000000000000","chain_id":138565}'
 ```
 
-- `/health` should return JSON (not 404 / 500)
+- `/api/v1/health/integrations` should show `"database": true` and `"redis": true`
 - `/api/v1/auth/nonce` should return `{ "nonce", "message", "expires_at" }` or **503** if Redis is missing
 
 ## 2. Point Vercel frontend at Render

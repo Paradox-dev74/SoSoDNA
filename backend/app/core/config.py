@@ -47,7 +47,18 @@ class Settings(BaseSettings):
     @property
     def async_database_url(self) -> str:
         """Neon/Vercel Postgres URLs are often sync `postgresql://`; SQLAlchemy async needs asyncpg."""
-        url = self.database_url
+        return self._to_async_database_url(self.database_url)
+
+    @property
+    def sync_database_url(self) -> str:
+        """Sync driver URL for Alembic/psycopg2."""
+        url = self.database_url_sync
+        if url.startswith("postgres://"):
+            return url.replace("postgres://", "postgresql://", 1)
+        return url
+
+    @staticmethod
+    def _to_async_database_url(url: str) -> str:
         if "+asyncpg" in url or "+psycopg" in url:
             return url
         if url.startswith("postgresql://"):
@@ -55,6 +66,11 @@ class Settings(BaseSettings):
         if url.startswith("postgres://"):
             return url.replace("postgres://", "postgresql+asyncpg://", 1)
         return url
+
+    @property
+    def database_requires_ssl(self) -> bool:
+        combined = f"{self.database_url} {self.database_url_sync}"
+        return any(marker in combined for marker in ("neon.tech", "sslmode=require", "ssl=require"))
 
     @property
     def is_local(self) -> bool:

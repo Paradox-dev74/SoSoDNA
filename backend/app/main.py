@@ -1,8 +1,10 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.v1 import api_router
 from app.core.config import get_settings
@@ -17,12 +19,12 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    if settings.is_local:
+    try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        logger.info("Local mode: database tables ensured via create_all")
-    else:
-        logger.info("Production mode: expecting Alembic migrations to manage schema")
+        logger.info("Database tables ensured via create_all")
+    except Exception:
+        logger.exception("Database initialization failed — check DATABASE_URL and SSL settings")
     yield
 
 
@@ -45,6 +47,26 @@ app.add_middleware(
 
 app.include_router(api_router, prefix="/api/v1")
 app.include_router(ws_router)
+
+
+@app.exception_handler(SQLAlchemyError)
+async def database_exception_handler(_request: Request, exc: SQLAlchemyError) -> JSONResponse:
+    logger.exception("Database error")
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail": (
+                "Database unavailable. Set DATABASE_URL to your Neon PostgreSQL URL on Render "
+                "(postgresql://... or postgresql+asyncpg://... with ssl)."
+            )
+        },
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(_request: Request, exc: Exception) -> JSONResponse:
+    logger.exception("Unhandled error: %s", exc)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 @app.get("/health")
