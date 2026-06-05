@@ -5,13 +5,6 @@
       "entrypoint": "frontend",
       "framework": "vite",
       "mount": "/"
-    },
-    "backend": {
-      "entrypoint": "backend",
-      "framework": "fastapi",
-      "mount": "/api",
-      "maxDuration": 60,
-      "memory": 1024
     }
   }
 }

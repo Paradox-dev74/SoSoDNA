@@ -1,6 +1,8 @@
-# Deploy SOSO DNA on Vercel
+# Deploy SOSO DNA on Vercel (frontend)
 
-This repo uses **Vercel Services** (multi-service monorepo): a Vite frontend and a FastAPI backend in one project.
+**Recommended production setup:** [Vercel frontend + Render backend](./render-vercel-deploy.md).
+
+This guide covers the Vercel frontend only. The API should run on Render (or another host), not Vercel serverless.
 
 ## 1. Import the repo
 
@@ -11,12 +13,11 @@ This repo uses **Vercel Services** (multi-service monorepo): a Vite frontend and
 
 Vercel should detect:
 
-| Service  | Mount / routes                 | Framework |
-|----------|--------------------------------|-----------|
-| frontend | `/` (catch-all SPA)            | Vite      |
-| backend  | `/api` (API + WebSocket)       | FastAPI   |
+| Service  | Mount / routes      | Framework |
+|----------|---------------------|-----------|
+| frontend | `/` (catch-all SPA) | Vite      |
 
-Root `vercel.json` defines both services via `experimentalServices`. The backend is mounted at `/api` so it does not share the frontend’s `/` mount.
+Root `vercel.json` deploys the frontend only. Set `VITE_API_URL` to your Render (or other) API URL.
 
 ## 2. External services (required)
 
@@ -57,8 +58,8 @@ Optional: `OPENAI_API_KEY`, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`
 
 | Variable | Production value |
 |----------|------------------|
-| `VITE_API_URL` | **leave empty** (same-origin `/api/v1`) |
-| `VITE_WS_URL` | **leave empty** (auto `wss://` on same host) |
+| `VITE_API_URL` | `https://YOUR-RENDER-URL.onrender.com` |
+| `VITE_WS_URL` | `wss://YOUR-RENDER-URL.onrender.com` |
 | `VITE_WALLETCONNECT_PROJECT_ID` | WalletConnect Cloud project ID |
 | `VITE_CHAIN_ID` | `138565` |
 | `VITE_VALUECHAIN_RPC_URL` | `https://testnet-rpc.valuechain.xyz` |
@@ -74,7 +75,7 @@ Click **Deploy**. After the first deploy:
 ## 5. Verify
 
 - `https://your-app.vercel.app` — landing page
-- `https://your-app.vercel.app/api/v1/health/integrations` — API health
+- `https://YOUR-RENDER-URL.onrender.com/api/v1/health/integrations` — API health
 - `https://your-app.vercel.app/connect` — wallet connect
 - Connect wallet → sync → dashboard
 
