@@ -16,7 +16,7 @@ Use this split when Vercel serverless Python is unreliable. The frontend stays o
 | `APP_ENV` | `production` |
 | `DATABASE_URL` | Neon URL (`postgresql://...` is fine) |
 | `DATABASE_URL_SYNC` | Same DB, sync URL (`postgresql://...`) |
-| `REDIS_URL` | **Upstash Redis** URL (required for wallet sign-in) |
+| `REDIS_URL` | **Upstash Redis** connection URL (required for wallet sign-in). Copy the `rediss://...` string from Upstash Console → Connect — **not** the `https://...` REST URL |
 | `SECRET_KEY` | Long random string |
 | `SOSOVALUE_API_KEY` | Your key |
 | `CORS_ORIGINS` | `https://soso-dna.vercel.app,http://localhost:5173` |
@@ -72,7 +72,7 @@ Leave `VITE_API_URL` empty only if the API is served from the same Vercel domain
 |---------|-----|
 | Still calling `soso-dna.vercel.app/api/...` | Set `VITE_API_URL` on Vercel and **redeploy** frontend |
 | CORS error | Set Render `CORS_ORIGINS=https://soso-dna.vercel.app` and redeploy API. Code also allows `*.vercel.app` via regex. |
-| 503 on nonce | Set `REDIS_URL` on Render (Upstash) |
+| 503 on nonce / Redis unavailable | Set `REDIS_URL` to Upstash `rediss://default:TOKEN@host.upstash.io:6379` (not `https://host.upstash.io`) |
 | 500 on Render `/health` | Check Render logs; fix `DATABASE_URL` |
 | 404 on Render | Wrong service URL or API not running |
 | Slow first request | Render free tier cold start (~30s) |
